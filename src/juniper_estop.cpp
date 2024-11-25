@@ -22,9 +22,9 @@ public:
         // Estop status publisher
         estop_status_pub_ = this->create_publisher<std_msgs::msg::Bool>("/estop_status", 10);
 
-        // Don't need a timer since going to publish whenever we get a message in subscription
-        // timer_ = this->create_wall_timer(
-        //     500ms, std::bind(&Estop::timer_callback, this));
+        // Publish the estop status regardless if sub'd to topic yet
+        timer_ = this->create_wall_timer(
+            500ms, std::bind(&Estop::timer_callback, this));
 
         // Subscriber for incoming velocity commands
         vel_in_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
@@ -37,10 +37,22 @@ public:
     }
 
 private:
-    // Don't need a timer since going to publish whenever we get a message in subscription
-    // void timer_callback()
-    // {
-    // }
+    void timer_callback()
+    {
+        auto status_msg = std_msgs::msg::Bool();
+        
+        if (estop_enabled_)
+        {
+            status_msg.data=1;
+        }
+        else
+        {
+            status_msg.data=0;
+        }
+
+        estop_status_pub_->publish(status_msg);
+
+    }
 
     void toggle_estop_callback(
         const std::shared_ptr<juniper_board_msgs::srv::BoolEstop::Request> request,
@@ -64,8 +76,7 @@ private:
 
     void cmd_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
     {
-        auto status_msg = std_msgs::msg::Bool();
-
+        
         if (estop_enabled_)
         {
             // Send 0's if estop is enabled
@@ -73,18 +84,12 @@ private:
             zero_vel_msg.linear.x = 0.0;
             zero_vel_msg.angular.z = 0.0;
             vel_out_pub_->publish(zero_vel_msg);
-
-           
-            status_msg.data=1;
-            estop_status_pub_->publish(status_msg);
             return;
         }
         else
         {
             // Republish estop command if estop disabled
             vel_out_pub_->publish(*msg);
-            status_msg.data=0;
-            estop_status_pub_->publish(status_msg);
         }    
     }
 
